@@ -3,7 +3,6 @@
     import Icon from 'svelte-awesome';
     import { trash, eye } from 'svelte-awesome/icons';
 
-
     let markers = [];
     let currentAction = '';
     let geocodeInputAddress = '';
@@ -25,7 +24,6 @@
                 if (results[0]) {
                     title = results[0].formatted_address;
                     content = results[0].geometry.location;
-                    console.log(results[0]);
 
                     let marker = new google.maps.Marker({
                         position: results[0].geometry.location,
@@ -56,7 +54,6 @@
                 title = 'Error';
                 content = 'Error: ' + status;
             }
-
             
             geocodeInputAddress = '';
             
@@ -89,7 +86,7 @@
                     if (results[0]) {
                         title = results[0].formatted_address;
                         content = e.latLng;
-                        console.log(results[0]);
+                        
                     } else {
                         title = 'Error';
                         content = 'No results found';
@@ -123,37 +120,63 @@
 
             });
 
-
         });
     }
 
-    function calculateDistance(){
-        let origin = markers[0].getPosition();
-        let destination = markers[1].getPosition();
+    function uploadCsv(){
+        let file = document.getElementById('csvFile').files[0];
+        let reader = new FileReader();
+        reader.readAsText(file);
+        reader.onload = function(e) {
+            let csv = reader.result;
+            
+            let allTextLines = csv.split(/\r\n|\n/);
+            let lines = [];
 
-        let service = new google.maps.DistanceMatrixService();
-        service.getDistanceMatrix(
-            {
-                origins: [origin],
-                destinations: [destination],
-                travelMode: 'DRIVING',
-                unitSystem: google.maps.UnitSystem.METRIC,
-                avoidHighways: false,
-                avoidTolls: false
-            }, (response, status) => {
-                if (status === 'OK') {
-                    let results = response.rows[0].elements;
-                    let distance = results[0].distance.text;
-                    let duration = results[0].duration.text;
-                    let dvDistance = document.getElementById('distance');
-                    let dvDuration = document.getElementById('duration');
-                    dvDistance.innerHTML = 'Distance: ' + distance;
-                    dvDuration.innerHTML = 'Duration: ' + duration;
-                } else {
-                    alert('Error was: ' + status);
+            for (let i=1; i<allTextLines.length; i++) {
+                let data = allTextLines[i].split(',');
+                if(data[0] != '') {
+                    lines.push(data[0]);
                 }
             }
-        );
+
+            let geocoder = new google.maps.Geocoder();
+            
+            lines.forEach(line => {
+                geocoder.geocode({'address': line}, (results, status) => {
+                    
+                    if (status === 'OK') {
+                        let title, content;
+
+                        if (results[0]) {
+                            title = results[0].formatted_address;
+                            content = results[0].geometry.location;
+                        } else {
+                            title = 'Error';
+                            content = 'No results found';
+                        }
+                        let marker = new google.maps.Marker({
+                                    position: results[0].geometry.location,
+                                    map: window.map,
+                                    title: title
+                                });
+
+                        markers = [...markers, marker];
+
+                        let infoWindow = new google.maps.InfoWindow({
+                            content: '<b>'+title+'</b><br/>'+content
+                        });
+
+                        marker.addListener('click', function(){
+                            infoWindow.open(window.map, marker);
+                        });
+                    } else {
+                        alert(status);
+                    }
+
+                });
+            });
+        }
     }
 </script>
 
@@ -184,9 +207,12 @@
 <div class="flex items-center mr-1 mb-2 ">
     <button on:click={geocodeAddMarker} class="p-2 w-full text-xs bg-transparent border-2 border-blue-500 text-blue-500 rounded-lg hover:bg-blue-500 hover:text-gray-100 "><span class="align-text-bottom"></span> Add marker using geocode</button>
 </div>
-<div class="flex items-center mr-1 ">
-    <button on:click={calculateDistance} class="p-2 w-full text-xs bg-transparent border-2 border-green-500 text-green-500 rounded-lg hover:bg-green-500 hover:text-gray-100 "><span class="align-text-bottom"></span> Distance between markers</button>
+
+<div class="flex items-center mr-1 mb-2">
+    <input class="hidden" type="file" id="csvFile" on:change={uploadCsv}>
+    <button on:click="{() => document.getElementById('csvFile').click() }" class="p-2 w-full text-xs bg-transparent border-2 border-blue-500 text-blue-500 rounded-lg hover:bg-blue-500 hover:text-gray-100 "><span class="align-text-bottom"></span> Geocode from csv</button>
 </div>
+
 
 <div class="font-bold text-sm text-gray-700 mt-4 mb-2">Markers ({markers.length})</div>
 
